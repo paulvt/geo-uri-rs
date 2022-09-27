@@ -1,4 +1,4 @@
-//! TODO: Write and include `README.md`!
+#![doc = include_str!("../README.md")]
 
 use std::fmt;
 use std::num::{ParseFloatError, ParseIntError};
