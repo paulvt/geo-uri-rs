@@ -75,7 +75,59 @@ pub enum ParseError {
 
 /// A uniform resource identifier for geographic locations (geo URI).
 ///
-/// TODO: Add examples!
+/// # Examples
+///
+/// ## Parsing
+///
+/// You can get a [`GeoUri`] by converting it from a geo URI string ([`&str`]):
+///
+/// ```rust
+/// use geo_uri::GeoUri;
+///
+/// let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000");
+/// assert!(geo_uri.is_ok());
+/// ```
+///
+/// or by using the [`TryFrom`] trait:
+/// ```
+/// use geo_uri::GeoUri;
+/// use std::str::FromStr;
+///
+/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000");
+/// assert!(geo_uri.is_ok());
+/// ```
+///
+/// It is also possible to call the parse function directly:
+///
+/// ```rust
+/// use geo_uri::GeoUri;
+///
+/// let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;u=1000");
+/// assert!(geo_uri.is_ok());
+/// ```
+///
+/// ## Generating
+///
+/// To get an geo URI string from some coordinates, use the [`GeoUriBuilder`]:
+///
+/// ```rust
+/// use geo_uri::GeoUri;
+///
+/// let geo_uri = GeoUri::builder()
+///                   .latitude(52.107)
+///                   .longitude(5.134)
+///                   .uncertainty(1_000)
+///                   .build()
+///                   .unwrap();
+/// assert_eq!(
+///     geo_uri.to_string(),
+///     String::from("geo:52.107,5.134;u=1000")
+/// );
+/// assert_eq!(
+///     format!("{geo_uri}"),
+///     String::from("geo:52.107,5.134;u=1000")
+/// );
+/// ```
 ///
 /// # See also
 ///
@@ -98,12 +150,12 @@ pub struct GeoUri {
 }
 
 impl GeoUri {
-    /// Return a builder to build a `GeoUri`.
+    /// Return a builder for `GeoUri`.
     pub fn builder() -> GeoUriBuilder {
         GeoUriBuilder::default()
     }
 
-    /// Try parsing a string into a `GeoUri`.
+    /// Try parsing a geo URI string into a `GeoUri`.
     ///
     /// For the geo URI scheme syntax, see the propsed IEEE standard
     /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870#section-3.3).
