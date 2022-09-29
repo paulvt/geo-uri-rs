@@ -236,7 +236,7 @@ impl fmt::Display for GeoUri {
         write!(f, "{URI_SCHEME_NAME}:{latitude},{longitude}")?;
 
         if let Some(altitude) = self.altitude {
-            write!(f, "{altitude}")?;
+            write!(f, ",{altitude}")?;
         }
 
         // Don't write the CRS since there is only one supported at the moment.
@@ -284,10 +284,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn parse() -> Result<(), ParseError> {
+    fn crs_id_default() {
+        assert_eq!(CrsId::default(), CrsId::Wgs84);
+    }
+
+    #[test]
+    fn geo_uri_builder() {
+        let builder = GeoUri::builder();
+        assert!(matches!(builder, GeoUriBuilder { .. }));
+    }
+
+    #[test]
+    fn geo_uri_parse() -> Result<(), ParseError> {
         let geo_uri = GeoUri::parse("geo:52.107,5.134")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_eq!(geo_uri.altitude, None);
         assert_eq!(geo_uri.uncertainty, None);
 
         let geo_uri = GeoUri::parse("52.107,5.134");
@@ -308,7 +320,7 @@ mod tests {
         let geo_uri = GeoUri::parse("geo:52.107,;u=1000");
         assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
 
-        let geo_uri = GeoUri::parse("geo:52.107,,6.00;u=1000");
+        let geo_uri = GeoUri::parse("geo:52.107,,6.50;u=1000");
         assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,;u=1000");
@@ -320,34 +332,37 @@ mod tests {
         assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
         assert_eq!(geo_uri.uncertainty, None);
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.34,6.00;u=");
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=");
         assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.34,6.00;u=foo");
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=foo");
         assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.34,6.00;crs=wgs84;u=foo");
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84;u=foo");
         assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.134,0.5;u=25000")?;
+        let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;u=25000")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
         assert_eq!(geo_uri.uncertainty, Some(25_000));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.134,0.5;crs=wgs84;u=25000")?;
+        let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;crs=wgs84;u=25000")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
         assert_eq!(geo_uri.uncertainty, Some(25_000));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.134,0.5;crs=wgs84;u=25000;foo=bar")?;
+        let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;crs=wgs84;u=25000;foo=bar")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
         assert_eq!(geo_uri.uncertainty, Some(25_000));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.34,6.00;crs=foo");
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=foo");
         assert!(matches!(geo_uri, Err(ParseError::InvalidCoordRefSystem)));
 
-        let geo_uri = GeoUri::parse("geo:52.107,5.34,6.00;crs=wgs84")?;
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84")?;
         assert!(matches!(geo_uri.crs_id, CrsId::Wgs84));
 
         // TODO: Add exmaples from RFC 5870!
@@ -355,27 +370,67 @@ mod tests {
         Ok(())
     }
 
-    #[ignore]
     #[test]
-    fn display() {
-        todo!("Implement test");
+    fn geo_uri_display() {
+        let mut geo_uri = GeoUri {
+            crs_id: CrsId::Wgs84,
+            latitude: 52.107,
+            longitude: 5.134,
+            altitude: None,
+            uncertainty: None,
+        };
+        assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134");
+
+        geo_uri.altitude = Some(3.6);
+        assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134,3.6");
+
+        geo_uri.uncertainty = Some(25_000);
+        assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134,3.6;u=25000");
     }
 
-    #[ignore]
     #[test]
-    fn from_str() {
-        todo!("Implement test");
+    fn geo_uri_from_str() -> Result<(), ParseError> {
+        let geo_uri = GeoUri::from_str("geo:52.107,5.134")?;
+        assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_eq!(geo_uri.altitude, None);
+        assert_eq!(geo_uri.uncertainty, None);
+
+        Ok(())
     }
 
-    #[ignore]
     #[test]
-    fn try_from() {
-        todo!("Implement test");
+    fn geo_uri_try_from() -> Result<(), ParseError> {
+        let geo_uri = GeoUri::try_from("geo:52.107,5.134")?;
+        assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_eq!(geo_uri.altitude, None);
+        assert_eq!(geo_uri.uncertainty, None);
+
+        Ok(())
     }
 
-    #[ignore]
     #[test]
-    fn partial_eq() {
-        todo!("Implement test");
+    fn geo_uri_partial_eq() -> Result<(), GeoUriBuilderError> {
+        let geo_uri = GeoUri::builder()
+            .latitude(52.107)
+            .longitude(5.134)
+            .build()?;
+        let geo_uri2 = GeoUri::builder()
+            .latitude(52.107)
+            .longitude(5.134)
+            .build()?;
+        assert_eq!(geo_uri, geo_uri2);
+        assert_eq!(geo_uri, geo_uri.clone());
+
+        let geo_uri = GeoUri::builder().latitude(90.0).longitude(5.134).build()?;
+        let geo_uri2 = GeoUri::builder().latitude(90.0).longitude(5.134).build()?;
+        assert_eq!(geo_uri, geo_uri2);
+
+        let geo_uri = GeoUri::builder().latitude(-90.0).longitude(5.134).build()?;
+        let geo_uri2 = GeoUri::builder().latitude(-90.0).longitude(5.134).build()?;
+        assert_eq!(geo_uri, geo_uri2);
+
+        Ok(())
     }
 }
