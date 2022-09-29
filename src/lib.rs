@@ -231,6 +231,7 @@ impl GeoUri {
     /// For the geo URI scheme syntax, see the propsed IEEE standard
     /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870#section-3.3).
     pub fn parse(uri: &str) -> Result<Self, Error> {
+        let uri = uri.to_ascii_lowercase();
         let uri_path = uri.strip_prefix("geo:").ok_or(Error::MissingScheme)?;
         let mut parts = uri_path.split(';');
 
@@ -259,7 +260,6 @@ impl GeoUri {
 
         // Parse the remaining (parameters) parts.
         //
-        // TODO: Handle possible casing issues in the pnames.
         // TODO: Handle percent encoding of the parameters.
         //
         // If the "crs" parameter is passed, its value must be "wgs84" or it is unsupported.
@@ -268,7 +268,7 @@ impl GeoUri {
         let mut param_parts = parts.flat_map(|part| part.split_once('='));
         let (crs, uncertainty) = match param_parts.next() {
             Some(("crs", value)) => {
-                if value.to_ascii_lowercase() != "wgs84" {
+                if value != "wgs84" {
                     return Err(Error::InvalidCoordRefSystem);
                 }
 
@@ -500,6 +500,9 @@ mod tests {
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
+        assert_eq!(geo_uri.uncertainty, Some(25_000));
+
+        let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;CRS=wgs84;U=25000")?;
         assert_eq!(geo_uri.uncertainty, Some(25_000));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;crs=wgs84;u=25000;foo=bar")?;
