@@ -436,11 +436,39 @@ mod tests {
     }
 
     #[test]
-    fn geo_uri_builder() {
-        let builder = GeoUri::builder();
-        assert!(matches!(builder, GeoUriBuilder { .. }));
+    fn geo_uri_builder() -> Result<(), GeoUriBuilderError> {
+        let mut builder = GeoUri::builder();
+        assert!(matches!(
+            builder.build(),
+            Err(GeoUriBuilderError::UninitializedField("latitude"))
+        ));
 
-        // TODO: Add more tests that ensure that required and default values are set up correctly.
+        builder.latitude(52.107);
+        assert!(matches!(
+            builder.build(),
+            Err(GeoUriBuilderError::UninitializedField("longitude"))
+        ));
+
+        builder.longitude(5.134);
+        let geo_uri = builder.build()?;
+        assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_eq!(geo_uri.altitude, None);
+        assert_eq!(geo_uri.uncertainty, None);
+
+        builder.latitude(100.0);
+        assert!(matches!(
+            builder.build(),
+            Err(GeoUriBuilderError::ValidationError(_))
+        ));
+
+        builder.latitude(52.107).longitude(-200.0);
+        assert!(matches!(
+            builder.build(),
+            Err(GeoUriBuilderError::ValidationError(_))
+        ));
+
+        Ok(())
     }
 
     #[test]
