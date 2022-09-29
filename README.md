@@ -1,9 +1,8 @@
-t# geo-uri-rs
+# geo-uri-rs
 
-A Rust crate (`geo-uri`) for uniform resource identifiers for geographic
-locations (geo URIs) according to
-IEEE RFC [5870](https://www.rfc-editor.org/rfc/rfc5870).
-This crate allows for parsing and generating geo URIs in the correct format.
+A Rust crate for uniform resource identifiers for geographic locations (geo
+URIs) according to IEEE [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870).
+This crate supports parsing and generating geo URIs in the correct format.
 Its parser is currently somewhat more liberal than the proposed standard.
 
 It supports geolocations specified by latitude and longitude, but also
@@ -18,7 +17,7 @@ Just run the following to add this library to your project:
 ```sh
 $ cargo add geo-uri
     Updating crates.io index
-      Adding thiserror v??? to dependencies.
+      Adding thiserror vX.Y.Z to dependencies.
 ```
 
 ### Parsing
@@ -29,12 +28,18 @@ Use either the [`FromStr`](std::str::FromStr) or
 ```rust
 use geo_uri::GeoUri;
 
-let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000");
-assert!(geo_uri.is_ok());
+let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000").expect("valid geo URI");
+assert_eq!(geo_uri.latitude(), 52.107);
+assert_eq!(geo_uri.longitude(), 5.134);
+assert_eq!(geo_uri.altitude(), Some(3.6));
+assert_eq!(geo_uri.uncertainty(), Some(1000.0));
 
 use std::str::FromStr;
-let geo_uri2 = GeoUri::from_str("geo:52.107,5.134;u=2000.0");
-assert!(geo_uri2.is_ok());
+let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0").expect("valid geo URI");
+assert_eq!(geo_uri.latitude(), 52.107);
+assert_eq!(geo_uri.longitude(), 5.134);
+assert_eq!(geo_uri.altitude(), None);
+assert_eq!(geo_uri.uncertainty(), Some(2000.0));
 ```
 
 It is also possible to call the parse function directly:
@@ -42,14 +47,18 @@ It is also possible to call the parse function directly:
 ```rust
 use geo_uri::GeoUri;
 
-let geo_uri3 = GeoUri::parse("geo:52.107,5.134,3.6;u=1000");
-assert!(geo_uri3.is_ok());
+let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6").expect("valid geo URI");
+assert_eq!(geo_uri.latitude(), 52.107);
+assert_eq!(geo_uri.longitude(), 5.134);
+assert_eq!(geo_uri.altitude(), Some(3.6));
+assert_eq!(geo_uri.uncertainty(), None);
 ```
 
 ### Generating
 
-Use either the [`ToString`](std::string::ToString) or
-[`Display`](std::fmt::Display) trait to generate an geo URI after building it:
+Use the `GeoUriBuilder` to construct a `GeoUri` struct.
+Then, use either the [`ToString`](std::string::ToString) or
+[`Display`](std::fmt::Display) trait to generate an geo URI string:
 
 ```rust
 use geo_uri::GeoUri;
@@ -60,6 +69,7 @@ let geo_uri = GeoUri::builder()
     .uncertainty(1_000.0)
     .build()
     .unwrap();
+
 assert_eq!(
     geo_uri.to_string(),
     String::from("geo:52.107,5.134;u=1000")
