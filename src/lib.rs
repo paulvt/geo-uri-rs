@@ -83,15 +83,16 @@ pub enum ParseError {
 #[derive(Builder, Copy, Clone, Debug, Default)]
 pub struct GeoUri {
     /// The coordinate reference system used by the coordinates of this URI.
+    #[builder(default)]
     pub crs_id: CrsId,
     /// The latitude coordinate of a location.
     pub latitude: f64,
     /// The longitude coordinate of a location.
     pub longitude: f64,
     /// The altitude coordinate of a location, if provided.
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     pub altitude: Option<f64>,
-    #[builder(setter(strip_option))]
+    #[builder(default, setter(strip_option))]
     /// The uncertainty around the location as a radius (distance) in meters.
     pub uncertainty: Option<u32>,
 }
