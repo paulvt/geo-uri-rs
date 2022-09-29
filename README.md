@@ -33,7 +33,7 @@ let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000");
 assert!(geo_uri.is_ok());
 
 use std::str::FromStr;
-let geo_uri2 = GeoUri::from_str("geo:52.107,5.134;u=2000");
+let geo_uri2 = GeoUri::from_str("geo:52.107,5.134;u=2000.0");
 assert!(geo_uri2.is_ok());
 ```
 
@@ -55,11 +55,11 @@ Use either the [`ToString`](std::string::ToString) or
 use geo_uri::GeoUri;
 
 let geo_uri = GeoUri::builder()
-                  .latitude(52.107)
-                  .longitude(5.134)
-                  .uncertainty(1_000)
-                  .build()
-                  .unwrap();
+    .latitude(52.107)
+    .longitude(5.134)
+    .uncertainty(1_000.0)
+    .build()
+    .unwrap();
 assert_eq!(
     geo_uri.to_string(),
     String::from("geo:52.107,5.134;u=1000")

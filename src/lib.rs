@@ -16,7 +16,7 @@
 #![deny(missing_docs)]
 
 use std::fmt;
-use std::num::{ParseFloatError, ParseIntError};
+use std::num::ParseFloatError;
 use std::str::FromStr;
 
 use derive_builder::Builder;
@@ -36,9 +36,9 @@ pub enum Error {
     #[error("Invalid coordinate reference system")]
     InvalidCoordRefSystem,
 
-    /// The geo URI contains an unparsable/invalid (uncertainty) distance.
+    /// The geo URI contains an unparsable/invalid uncertainty distance.
     #[error("Invalid distance in geo URI: {0}")]
-    InvalidDistance(ParseIntError),
+    InvalidUncertainty(ParseFloatError),
 
     /// The geo URI contains no coordinates.
     #[error("Missing coordinates in geo URI")]
@@ -62,11 +62,15 @@ pub enum Error {
     #[error("Latitude coordinate is out of range")]
     OutOfRangeLatitude,
 
-    /// The longitude coordinate is out of range of `-180.0..=180.0` degrees
+    /// The longitude coordinate is out of range of `-180.0..=180.0` degrees.
     ///
     /// This can only fail for the WGS-84 coordinate reference system.
     #[error("Longitude coordinate is out of range")]
     OutOfRangeLongitude,
+
+    /// The uncertainty distance is not positive.
+    #[error("Uncertainty distance not positive")]
+    OutOfRangeUncertainty,
 }
 
 /// The reference system of the provided coordinates.
@@ -139,7 +143,7 @@ impl Default for CoordRefSystem {
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), Some(3.6));
-/// assert_eq!(geo_uri.uncertainty(), Some(1000));
+/// assert_eq!(geo_uri.uncertainty(), Some(1000.0));
 /// ```
 ///
 /// or by using the [`TryFrom`] trait:
@@ -147,11 +151,11 @@ impl Default for CoordRefSystem {
 /// use geo_uri::GeoUri;
 /// use std::str::FromStr;
 ///
-/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000").expect("valid geo URI");
+/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0").expect("valid geo URI");
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), None);
-/// assert_eq!(geo_uri.uncertainty(), Some(2000));
+/// assert_eq!(geo_uri.uncertainty(), Some(2000.0));
 /// ```
 ///
 /// It is also possible to call the parse function directly:
@@ -176,7 +180,7 @@ impl Default for CoordRefSystem {
 /// let geo_uri = GeoUri::builder()
 ///     .latitude(52.107)
 ///     .longitude(5.134)
-///     .uncertainty(1_000)
+///     .uncertainty(1_000.0)
 ///     .build()
 ///     .unwrap();
 /// assert_eq!(
@@ -217,7 +221,9 @@ pub struct GeoUri {
 
     #[builder(default, setter(strip_option))]
     /// The uncertainty around the location as a radius (distance) in meters.
-    uncertainty: Option<u32>,
+    ///
+    /// This distance needs to be positive.
+    uncertainty: Option<f64>,
 }
 
 impl GeoUri {
@@ -275,19 +281,26 @@ impl GeoUri {
                 match param_parts.next() {
                     Some(("u", value)) => (
                         CoordRefSystem::Wgs84,
-                        Some(value.parse().map_err(Error::InvalidDistance)?),
+                        Some(value.parse().map_err(Error::InvalidUncertainty)?),
                     ),
                     Some(_) | None => (CoordRefSystem::Wgs84, None),
                 }
             }
             Some(("u", value)) => (
                 CoordRefSystem::default(),
-                Some(value.parse().map_err(Error::InvalidDistance)?),
+                Some(value.parse().map_err(Error::InvalidUncertainty)?),
             ),
             Some(_) | None => (CoordRefSystem::default(), None),
         };
 
+        // Validate the parsed values.
         crs.validate(latitude, longitude)?;
+        // FIXME: Move this into the validator? This code is duplicate now.
+        if let Some(unc) = uncertainty {
+            if unc < 0.0 {
+                return Err(Error::OutOfRangeUncertainty);
+            }
+        }
 
         Ok(GeoUri {
             crs,
@@ -339,13 +352,22 @@ impl GeoUri {
     }
 
     /// Returns the uncertainty around the location.
-    pub fn uncertainty(&self) -> Option<u32> {
+    pub fn uncertainty(&self) -> Option<f64> {
         self.uncertainty
     }
 
     /// Changes the uncertainty around the location.
-    pub fn set_uncertainty(&mut self, uncertainty: Option<u32>) {
+    ///
+    /// The uncertainty distance must be positive.
+    pub fn set_uncertainty(&mut self, uncertainty: Option<f64>) -> Result<(), Error> {
+        if let Some(unc) = uncertainty {
+            if unc < 0.0 {
+                return Err(Error::OutOfRangeUncertainty);
+            }
+        }
         self.uncertainty = uncertainty;
+
+        Ok(())
     }
 }
 
@@ -409,7 +431,15 @@ impl GeoUriBuilder {
                 self.latitude.unwrap_or_default(),
                 self.longitude.unwrap_or_default(),
             )
-            .map_err(|e| format!("{e}"))
+            .map_err(|e| format!("{e}"))?;
+
+        if let Some(unc) = self.uncertainty.unwrap_or_default() {
+            if unc < 0.0 {
+                return Err(format!("{}", Error::OutOfRangeUncertainty));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -482,6 +512,12 @@ mod tests {
         let geo_uri = GeoUri::parse("52.107,5.134");
         assert!(matches!(geo_uri, Err(Error::MissingScheme)));
 
+        let geo_uri = GeoUri::parse("geo:100.0,5.134");
+        assert!(matches!(geo_uri, Err(Error::OutOfRangeLatitude)));
+
+        let geo_uri = GeoUri::parse("geo:62.107,-200.0");
+        assert!(matches!(geo_uri, Err(Error::OutOfRangeLongitude)));
+
         let geo_uri = GeoUri::parse("geo:geo:52.107,5.134");
         assert!(matches!(geo_uri, Err(Error::InvalidCoord(_))));
 
@@ -510,34 +546,37 @@ mod tests {
         assert_eq!(geo_uri.uncertainty, None);
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=");
-        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidUncertainty(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=foo");
-        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidUncertainty(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84;u=foo");
-        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidUncertainty(_))));
+
+        let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=-10.0");
+        assert!(matches!(geo_uri, Err(Error::OutOfRangeUncertainty)));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;u=25000")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
-        assert_eq!(geo_uri.uncertainty, Some(25_000));
+        assert_eq!(geo_uri.uncertainty, Some(25_000.0));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;crs=wgs84;u=25000")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
-        assert_eq!(geo_uri.uncertainty, Some(25_000));
+        assert_eq!(geo_uri.uncertainty, Some(25_000.0));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;CRS=wgs84;U=25000")?;
-        assert_eq!(geo_uri.uncertainty, Some(25_000));
+        assert_eq!(geo_uri.uncertainty, Some(25_000.0));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;crs=wgs84;u=25000;foo=bar")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.001);
-        assert_eq!(geo_uri.uncertainty, Some(25_000));
+        assert_eq!(geo_uri.uncertainty, Some(25_000.0));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=foo");
         assert!(matches!(geo_uri, Err(Error::InvalidCoordRefSystem)));
@@ -578,8 +617,12 @@ mod tests {
         geo_uri.set_altitude(Some(3.6));
         assert_eq!(geo_uri.altitude(), Some(3.6));
 
-        geo_uri.set_uncertainty(Some(25_000));
-        assert_eq!(geo_uri.uncertainty(), Some(25_000));
+        assert_eq!(geo_uri.set_uncertainty(Some(25_000.0)), Ok(()));
+        assert_eq!(
+            geo_uri.set_uncertainty(Some(-100.0)),
+            Err(Error::OutOfRangeUncertainty)
+        );
+        assert_eq!(geo_uri.uncertainty(), Some(25_000.0));
     }
 
     #[test]
@@ -596,7 +639,7 @@ mod tests {
         geo_uri.altitude = Some(3.6);
         assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134,3.6");
 
-        geo_uri.uncertainty = Some(25_000);
+        geo_uri.uncertainty = Some(25_000.0);
         assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134,3.6;u=25000");
     }
 
