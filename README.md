@@ -1,14 +1,14 @@
-# geo-uri-rs
+t# geo-uri-rs
 
-A Rust crate (`geo-uri`) for parsing uniform resource identifiers for
-geographic locations (geo URIs) according to
+A Rust crate (`geo-uri`) for uniform resource identifiers for geographic
+locations (geo URIs) according to
 IEEE RFC [5870](https://www.rfc-editor.org/rfc/rfc5870).
 This crate allows for parsing and generating geo URIs in the correct format.
-It's parser is currently somewhat more liberal than the proposed standard.
+Its parser is currently somewhat more liberal than the proposed standard.
 
 It supports geolocations specified by latitude and longitude, but also
 optionally altitude and an uncertainty radius.
-The only supported coordinate reference system is
+The currently only supported coordinate reference system is
 [WGS-84](https://en.wikipedia.org/wiki/World_Geodetic_System#WGS84).
 
 ## Usage
@@ -32,6 +32,7 @@ use geo_uri::GeoUri;
 let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000");
 assert!(geo_uri.is_ok());
 
+use std::str::FromStr;
 let geo_uri2 = GeoUri::from_str("geo:52.107,5.134;u=2000");
 assert!(geo_uri2.is_ok());
 ```
@@ -57,13 +58,14 @@ let geo_uri = GeoUri::builder()
                   .latitude(52.107)
                   .longitude(5.134)
                   .uncertainty(1_000)
-                  .build();
+                  .build()
+                  .unwrap();
 assert_eq!(
     geo_uri.to_string(),
     String::from("geo:52.107,5.134;u=1000")
 );
 assert_eq!(
-    format!("{}", geo_uri),
+    format!("{geo_uri}"),
     String::from("geo:52.107,5.134;u=1000")
 );
 ```
