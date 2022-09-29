@@ -25,6 +25,50 @@ use thiserror::Error;
 /// The scheme name of a geo URI.
 const URI_SCHEME_NAME: &str = "geo";
 
+/// Possible geo URI errors.
+#[derive(Debug, Error, Eq, PartialEq)]
+pub enum Error {
+    /// The geo URI contains an unparsable/invalid coordinate.
+    #[error("Invalid coordinate in geo URI: {0}")]
+    InvalidCoord(ParseFloatError),
+
+    /// The geo URI contains an unsupported/invalid coordinate reference system.
+    #[error("Invalid coordinate reference system")]
+    InvalidCoordRefSystem,
+
+    /// The geo URI contains an unparsable/invalid (uncertainty) distance.
+    #[error("Invalid distance in geo URI: {0}")]
+    InvalidDistance(ParseIntError),
+
+    /// The geo URI contains no coordinates.
+    #[error("Missing coordinates in geo URI")]
+    MissingCoords,
+
+    /// The geo URI lacks the latitude coordinate.
+    #[error("Missing latitude coordinate in geo URI")]
+    MissingLatitude,
+
+    /// The geo URI lacks the longitude coordinate.
+    #[error("Missing longitude coordinate in geo URI")]
+    MissingLongitude,
+
+    /// The geo URI is missing a proper scheme, i.e. the prefix `geo:`.
+    #[error("Missing geo URI scheme")]
+    MissingScheme,
+
+    /// The latitude coordinate is out of range of `-90.0..=90.0` degrees.
+    ///
+    /// This can only fail for the WGS-84 coordinate reference system.
+    #[error("Latitude coordinate is out of range")]
+    OutOfRangeLatitude,
+
+    /// The longitude coordinate is out of range of `-180.0..=180.0` degrees
+    ///
+    /// This can only fail for the WGS-84 coordinate reference system.
+    #[error("Longitude coordinate is out of range")]
+    OutOfRangeLongitude,
+}
+
 /// The reference system of the provided coordinates.
 ///
 /// Currently only the `WGS-84` coordinate reference system is supported.
@@ -47,27 +91,27 @@ impl CoordRefSystem {
     /// # Examples
     ///
     /// ```rust
-    /// # use geo_uri::{CoordRefSystem, ParseError};
+    /// # use geo_uri::{CoordRefSystem, Error};
     /// let crs = CoordRefSystem::Wgs84;
     /// assert_eq!(crs.validate(52.107, 5.134), Ok(()));
     /// assert_eq!(
     ///     crs.validate(100.0, 5.134), // Latitude not in range `-90.0..=90.0`!
-    ///     Err(ParseError::OutOfRangeLatitudeCoord)
+    ///     Err(Error::OutOfRangeLatitude)
     /// );
     /// assert_eq!(
     ///     crs.validate(51.107, -200.0), // Longitude not in range `-180.0..=180.0`!
-    ///     Err(ParseError::OutOfRangeLongitudeCoord)
+    ///     Err(Error::OutOfRangeLongitude)
     /// );
     /// ```
-    pub fn validate(&self, latitude: f64, longitude: f64) -> Result<(), ParseError> {
+    pub fn validate(&self, latitude: f64, longitude: f64) -> Result<(), Error> {
         // This holds only for WGS-84, but it is the only one supported right now!
         if !(-90.0..=90.0).contains(&latitude) {
-            return Err(ParseError::OutOfRangeLatitudeCoord);
+            return Err(Error::OutOfRangeLatitude);
         }
 
         // This holds only for WGS-84, but it is the only one supported right now!
         if !(-180.0..=180.0).contains(&longitude) {
-            return Err(ParseError::OutOfRangeLongitudeCoord);
+            return Err(Error::OutOfRangeLongitude);
         }
 
         Ok(())
@@ -78,42 +122,6 @@ impl Default for CoordRefSystem {
     fn default() -> Self {
         Self::Wgs84
     }
-}
-
-/// Possible geo URI errors.
-#[derive(Debug, Error, Eq, PartialEq)]
-pub enum ParseError {
-    /// The geo URI is missing a proper scheme, i.e. the prefix `geo:`.
-    #[error("Missing geo URI scheme")]
-    MissingScheme,
-    /// The geo URI contains no coordinates.
-    #[error("Missing coordinates in geo URI")]
-    MissingCoords,
-    /// The geo URI lacks the latitude coordinate.
-    #[error("Missing latitude coordinate in geo URI")]
-    MissingLatitudeCoord,
-    /// The geo URI lacks the longitude coordinate.
-    #[error("Missing longitude coordinate in geo URI")]
-    MissingLongitudeCoord,
-    /// The geo URI contains an unparsable/invalid coordinate.
-    #[error("Invalid coordinate in geo URI: {0}")]
-    InvalidCoord(ParseFloatError),
-    /// The geo URI contains an unsupported/invalid coordinate reference system.
-    #[error("Invalid coordinate reference system")]
-    InvalidCoordRefSystem,
-    /// The geo URI contains an unparsable/invalid (uncertainty) distance.
-    #[error("Invalid distance in geo URI: {0}")]
-    InvalidDistance(ParseIntError),
-    /// The latitude coordinate is out of range of `-90..=90` degrees.
-    ///
-    /// This can only fail for the WGS-84 coordinate reference system.
-    #[error("Latitude coordinate is out of range")]
-    OutOfRangeLatitudeCoord,
-    /// The longitude coordinate is out of range of `-180..=180` degrees
-    ///
-    /// This can only fail for the WGS-84 coordinate reference system.
-    #[error("Longitude coordinate is out of range")]
-    OutOfRangeLongitudeCoord,
 }
 
 /// A uniform resource identifier for geographic locations (geo URI).
@@ -209,31 +217,31 @@ impl GeoUri {
     ///
     /// For the geo URI scheme syntax, see the propsed IEEE standard
     /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870#section-3.3).
-    pub fn parse(uri: &str) -> Result<Self, ParseError> {
-        let uri_path = uri.strip_prefix("geo:").ok_or(ParseError::MissingScheme)?;
+    pub fn parse(uri: &str) -> Result<Self, Error> {
+        let uri_path = uri.strip_prefix("geo:").ok_or(Error::MissingScheme)?;
         let mut parts = uri_path.split(';');
 
         // Parse the coordinate part.
         let coords_part = parts.next().expect("Split always yields at least one part");
         // Don't iterate over anything if the coordinate part is empty!
         let mut coords = if coords_part.is_empty() {
-            return Err(ParseError::MissingCoords);
+            return Err(Error::MissingCoords);
         } else {
             coords_part.splitn(3, ',')
         };
         let latitude = coords
             .next()
-            .ok_or(ParseError::MissingLatitudeCoord) // This cannot really happen
-            .and_then(|lat_s| lat_s.parse().map_err(ParseError::InvalidCoord))?;
+            .ok_or(Error::MissingLatitude) // This cannot really happen
+            .and_then(|lat_s| lat_s.parse().map_err(Error::InvalidCoord))?;
 
         let longitude = coords
             .next()
-            .ok_or(ParseError::MissingLongitudeCoord)
-            .and_then(|lon_s| lon_s.parse().map_err(ParseError::InvalidCoord))?;
+            .ok_or(Error::MissingLongitude)
+            .and_then(|lon_s| lon_s.parse().map_err(Error::InvalidCoord))?;
 
         let altitude = coords
             .next()
-            .map(|alt_s| alt_s.parse().map_err(ParseError::InvalidCoord))
+            .map(|alt_s| alt_s.parse().map_err(Error::InvalidCoord))
             .transpose()?;
 
         // Parse the remaining (parameters) parts.
@@ -248,20 +256,20 @@ impl GeoUri {
         let (crs, uncertainty) = match param_parts.next() {
             Some(("crs", value)) => {
                 if value.to_ascii_lowercase() != "wgs84" {
-                    return Err(ParseError::InvalidCoordRefSystem);
+                    return Err(Error::InvalidCoordRefSystem);
                 }
 
                 match param_parts.next() {
                     Some(("u", value)) => (
                         CoordRefSystem::Wgs84,
-                        Some(value.parse().map_err(ParseError::InvalidDistance)?),
+                        Some(value.parse().map_err(Error::InvalidDistance)?),
                     ),
                     Some(_) | None => (CoordRefSystem::Wgs84, None),
                 }
             }
             Some(("u", value)) => (
                 CoordRefSystem::default(),
-                Some(value.parse().map_err(ParseError::InvalidDistance)?),
+                Some(value.parse().map_err(Error::InvalidDistance)?),
             ),
             Some(_) | None => (CoordRefSystem::default(), None),
         };
@@ -301,7 +309,7 @@ impl fmt::Display for GeoUri {
 }
 
 impl FromStr for GeoUri {
-    type Err = ParseError;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
@@ -309,7 +317,7 @@ impl FromStr for GeoUri {
 }
 
 impl TryFrom<&str> for GeoUri {
-    type Error = ParseError;
+    type Error = Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::parse(value)
@@ -357,13 +365,10 @@ mod tests {
     fn coord_ref_system_validate() {
         let crs = CoordRefSystem::Wgs84;
         assert_eq!(crs.validate(52.107, 5.134), Ok(()));
-        assert_eq!(
-            crs.validate(100.0, 5.134),
-            Err(ParseError::OutOfRangeLatitudeCoord)
-        );
+        assert_eq!(crs.validate(100.0, 5.134), Err(Error::OutOfRangeLatitude));
         assert_eq!(
             crs.validate(51.107, -200.0),
-            Err(ParseError::OutOfRangeLongitudeCoord)
+            Err(Error::OutOfRangeLongitude)
         );
     }
 
@@ -374,7 +379,7 @@ mod tests {
     }
 
     #[test]
-    fn geo_uri_parse() -> Result<(), ParseError> {
+    fn geo_uri_parse() -> Result<(), Error> {
         let geo_uri = GeoUri::parse("geo:52.107,5.134")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
@@ -382,28 +387,28 @@ mod tests {
         assert_eq!(geo_uri.uncertainty, None);
 
         let geo_uri = GeoUri::parse("52.107,5.134");
-        assert!(matches!(geo_uri, Err(ParseError::MissingScheme)));
+        assert!(matches!(geo_uri, Err(Error::MissingScheme)));
 
         let geo_uri = GeoUri::parse("geo:geo:52.107,5.134");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidCoord(_))));
 
         let geo_uri = GeoUri::parse("geo:");
-        assert!(matches!(geo_uri, Err(ParseError::MissingCoords)));
+        assert!(matches!(geo_uri, Err(Error::MissingCoords)));
 
         let geo_uri = GeoUri::parse("geo:;u=5000");
-        assert!(matches!(geo_uri, Err(ParseError::MissingCoords)));
+        assert!(matches!(geo_uri, Err(Error::MissingCoords)));
 
         let geo_uri = GeoUri::parse("geo:52.107;u=1000");
-        assert!(matches!(geo_uri, Err(ParseError::MissingLongitudeCoord)));
+        assert!(matches!(geo_uri, Err(Error::MissingLongitude)));
 
         let geo_uri = GeoUri::parse("geo:52.107,;u=1000");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidCoord(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,,6.50;u=1000");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidCoord(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,;u=1000");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidCoord(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidCoord(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
@@ -412,13 +417,13 @@ mod tests {
         assert_eq!(geo_uri.uncertainty, None);
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;u=foo");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84;u=foo");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidDistance(_))));
+        assert!(matches!(geo_uri, Err(Error::InvalidDistance(_))));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;u=25000")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
@@ -439,7 +444,7 @@ mod tests {
         assert_eq!(geo_uri.uncertainty, Some(25_000));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=foo");
-        assert!(matches!(geo_uri, Err(ParseError::InvalidCoordRefSystem)));
+        assert!(matches!(geo_uri, Err(Error::InvalidCoordRefSystem)));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84")?;
         assert!(matches!(geo_uri.crs, CoordRefSystem::Wgs84));
@@ -468,7 +473,7 @@ mod tests {
     }
 
     #[test]
-    fn geo_uri_from_str() -> Result<(), ParseError> {
+    fn geo_uri_from_str() -> Result<(), Error> {
         let geo_uri = GeoUri::from_str("geo:52.107,5.134")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
@@ -479,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn geo_uri_try_from() -> Result<(), ParseError> {
+    fn geo_uri_try_from() -> Result<(), Error> {
         let geo_uri = GeoUri::try_from("geo:52.107,5.134")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
