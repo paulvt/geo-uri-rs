@@ -135,8 +135,11 @@ impl Default for CoordRefSystem {
 /// ```rust
 /// use geo_uri::GeoUri;
 ///
-/// let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000");
-/// assert!(geo_uri.is_ok());
+/// let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000").expect("valid geo URI");
+/// assert_eq!(geo_uri.latitude(), 52.107);
+/// assert_eq!(geo_uri.longitude(), 5.134);
+/// assert_eq!(geo_uri.altitude(), Some(3.6));
+/// assert_eq!(geo_uri.uncertainty(), Some(1000));
 /// ```
 ///
 /// or by using the [`TryFrom`] trait:
@@ -144,8 +147,11 @@ impl Default for CoordRefSystem {
 /// use geo_uri::GeoUri;
 /// use std::str::FromStr;
 ///
-/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000");
-/// assert!(geo_uri.is_ok());
+/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000").expect("valid geo URI");
+/// assert_eq!(geo_uri.latitude(), 52.107);
+/// assert_eq!(geo_uri.longitude(), 5.134);
+/// assert_eq!(geo_uri.altitude(), None);
+/// assert_eq!(geo_uri.uncertainty(), Some(2000));
 /// ```
 ///
 /// It is also possible to call the parse function directly:
@@ -153,8 +159,11 @@ impl Default for CoordRefSystem {
 /// ```rust
 /// use geo_uri::GeoUri;
 ///
-/// let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6;u=1000");
-/// assert!(geo_uri.is_ok());
+/// let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6").expect("valid geo URI");
+/// assert_eq!(geo_uri.latitude(), 52.107);
+/// assert_eq!(geo_uri.longitude(), 5.134);
+/// assert_eq!(geo_uri.altitude(), Some(3.6));
+/// assert_eq!(geo_uri.uncertainty(), None);
 /// ```
 ///
 /// ## Generating
@@ -165,11 +174,11 @@ impl Default for CoordRefSystem {
 /// use geo_uri::GeoUri;
 ///
 /// let geo_uri = GeoUri::builder()
-///                   .latitude(52.107)
-///                   .longitude(5.134)
-///                   .uncertainty(1_000)
-///                   .build()
-///                   .unwrap();
+///     .latitude(52.107)
+///     .longitude(5.134)
+///     .uncertainty(1_000)
+///     .build()
+///     .unwrap();
 /// assert_eq!(
 ///     geo_uri.to_string(),
 ///     String::from("geo:52.107,5.134;u=1000")
@@ -188,23 +197,27 @@ impl Default for CoordRefSystem {
 pub struct GeoUri {
     /// The coordinate reference system used by the coordinates of this URI.
     #[builder(default)]
-    pub crs: CoordRefSystem,
+    crs: CoordRefSystem,
+
     /// The latitude coordinate of a location.
     ///
     /// For the WGS-84 coordinate reference system, this should be in the range of
     /// `-90.0` up until including `90.0` degrees.
-    pub latitude: f64,
+    latitude: f64,
+
     /// The longitude coordinate of a location.
     ///
     /// For the WGS-84 coordinate reference system, this should be in the range of
     /// `-180.0` up until including `180.0` degrees.
-    pub longitude: f64,
+    longitude: f64,
+
     /// The altitude coordinate of a location, if provided.
     #[builder(default, setter(strip_option))]
-    pub altitude: Option<f64>,
+    altitude: Option<f64>,
+
     #[builder(default, setter(strip_option))]
     /// The uncertainty around the location as a radius (distance) in meters.
-    pub uncertainty: Option<u32>,
+    uncertainty: Option<u32>,
 }
 
 impl GeoUri {
@@ -283,6 +296,56 @@ impl GeoUri {
             altitude,
             uncertainty,
         })
+    }
+
+    /// Returns the latitude coordinate.
+    pub fn latitude(&self) -> f64 {
+        self.latitude
+    }
+
+    /// Changes the latitude coordinate.
+    ///
+    /// The latitude may be out of range for the coordinate reference system.
+    pub fn set_latitude(&mut self, latitude: f64) -> Result<(), Error> {
+        self.crs.validate(latitude, self.longitude)?;
+        self.latitude = latitude;
+
+        Ok(())
+    }
+
+    /// Returns the longitude coordinate.
+    pub fn longitude(&self) -> f64 {
+        self.longitude
+    }
+
+    /// Changes the longitude coordinate.
+    ///
+    /// The longitude may be out of range for the coordinate reference system.
+    pub fn set_longitude(&mut self, longitude: f64) -> Result<(), Error> {
+        self.crs.validate(self.latitude, longitude)?;
+        self.longitude = longitude;
+
+        Ok(())
+    }
+
+    /// Returns the altitude coordinate (if any).
+    pub fn altitude(&self) -> Option<f64> {
+        self.altitude
+    }
+
+    /// Changes the altitude coordinate.
+    pub fn set_altitude(&mut self, altitude: Option<f64>) {
+        self.altitude = altitude;
+    }
+
+    /// Returns the uncertainty around the location.
+    pub fn uncertainty(&self) -> Option<u32> {
+        self.uncertainty
+    }
+
+    /// Changes the uncertainty around the location.
+    pub fn set_uncertainty(&mut self, uncertainty: Option<u32>) {
+        self.uncertainty = uncertainty;
     }
 }
 
@@ -376,6 +439,8 @@ mod tests {
     fn geo_uri_builder() {
         let builder = GeoUri::builder();
         assert!(matches!(builder, GeoUriBuilder { .. }));
+
+        // TODO: Add more tests that ensure that required and default values are set up correctly.
     }
 
     #[test]
@@ -452,6 +517,38 @@ mod tests {
         // TODO: Add exmaples from RFC 5870!
 
         Ok(())
+    }
+
+    #[test]
+    fn geo_uri_get_set() {
+        let mut geo_uri = GeoUri {
+            crs: CoordRefSystem::Wgs84,
+            latitude: 52.107,
+            longitude: 5.134,
+            altitude: None,
+            uncertainty: None,
+        };
+        assert_eq!(geo_uri.latitude(), 52.107);
+        assert_eq!(geo_uri.longitude(), 5.134);
+        assert_eq!(geo_uri.altitude(), None);
+        assert_eq!(geo_uri.uncertainty(), None);
+
+        assert_eq!(geo_uri.set_latitude(53.107), Ok(()));
+        assert_eq!(geo_uri.set_latitude(100.0), Err(Error::OutOfRangeLatitude));
+        assert_eq!(geo_uri.latitude(), 53.107);
+
+        assert_eq!(geo_uri.set_longitude(6.134), Ok(()));
+        assert_eq!(
+            geo_uri.set_longitude(-200.0),
+            Err(Error::OutOfRangeLongitude)
+        );
+        assert_eq!(geo_uri.longitude(), 6.134);
+
+        geo_uri.set_altitude(Some(3.6));
+        assert_eq!(geo_uri.altitude(), Some(3.6));
+
+        geo_uri.set_uncertainty(Some(25_000));
+        assert_eq!(geo_uri.uncertainty(), Some(25_000));
     }
 
     #[test]
