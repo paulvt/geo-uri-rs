@@ -36,18 +36,51 @@ const URI_SCHEME_NAME: &str = "geo";
 /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870).
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum CrsId {
+pub enum CoordRefSystem {
     /// The WGS-84 coordinate reference system.
     Wgs84,
 }
 
-impl Default for CrsId {
+impl CoordRefSystem {
+    /// Validates geo location coordinates against the selected coordinate reference system.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use geo_uri::{CoordRefSystem, ParseError};
+    /// let crs = CoordRefSystem::Wgs84;
+    /// assert_eq!(crs.validate(52.107, 5.134), Ok(()));
+    /// assert_eq!(
+    ///     crs.validate(100.0, 5.134), // Latitude not in range `-90.0..=90.0`!
+    ///     Err(ParseError::OutOfRangeLatitudeCoord)
+    /// );
+    /// assert_eq!(
+    ///     crs.validate(51.107, -200.0), // Longitude not in range `-180.0..=180.0`!
+    ///     Err(ParseError::OutOfRangeLongitudeCoord)
+    /// );
+    /// ```
+    pub fn validate(&self, latitude: f64, longitude: f64) -> Result<(), ParseError> {
+        // This holds only for WGS-84, but it is the only one supported right now!
+        if !(-90.0..=90.0).contains(&latitude) {
+            return Err(ParseError::OutOfRangeLatitudeCoord);
+        }
+
+        // This holds only for WGS-84, but it is the only one supported right now!
+        if !(-180.0..=180.0).contains(&longitude) {
+            return Err(ParseError::OutOfRangeLongitudeCoord);
+        }
+
+        Ok(())
+    }
+}
+
+impl Default for CoordRefSystem {
     fn default() -> Self {
         Self::Wgs84
     }
 }
 
-/// Possible geo URI parse errors.
+/// Possible geo URI errors.
 #[derive(Debug, Error, Eq, PartialEq)]
 pub enum ParseError {
     /// The geo URI is missing a proper scheme, i.e. the prefix `geo:`.
@@ -71,6 +104,16 @@ pub enum ParseError {
     /// The geo URI contains an unparsable/invalid (uncertainty) distance.
     #[error("Invalid distance in geo URI: {0}")]
     InvalidDistance(ParseIntError),
+    /// The latitude coordinate is out of range of `-90..=90` degrees.
+    ///
+    /// This can only fail for the WGS-84 coordinate reference system.
+    #[error("Latitude coordinate is out of range")]
+    OutOfRangeLatitudeCoord,
+    /// The longitude coordinate is out of range of `-180..=180` degrees
+    ///
+    /// This can only fail for the WGS-84 coordinate reference system.
+    #[error("Longitude coordinate is out of range")]
+    OutOfRangeLongitudeCoord,
 }
 
 /// A uniform resource identifier for geographic locations (geo URI).
@@ -133,13 +176,20 @@ pub enum ParseError {
 ///
 /// For the proposed IEEE standard, see [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870).
 #[derive(Builder, Copy, Clone, Debug, Default)]
+#[builder(build_fn(validate = "Self::validate"))]
 pub struct GeoUri {
     /// The coordinate reference system used by the coordinates of this URI.
     #[builder(default)]
-    pub crs_id: CrsId,
+    pub crs: CoordRefSystem,
     /// The latitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-90.0` up until including `90.0` degrees.
     pub latitude: f64,
     /// The longitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-180.0` up until including `180.0` degrees.
     pub longitude: f64,
     /// The altitude coordinate of a location, if provided.
     #[builder(default, setter(strip_option))]
@@ -195,7 +245,7 @@ impl GeoUri {
         // It can be followed by a "u" parameter or that can be the first one.
         // All other parameters are ignored.
         let mut param_parts = parts.flat_map(|part| part.split_once('='));
-        let (crs_id, uncertainty) = match param_parts.next() {
+        let (crs, uncertainty) = match param_parts.next() {
             Some(("crs", value)) => {
                 if value.to_ascii_lowercase() != "wgs84" {
                     return Err(ParseError::InvalidCoordRefSystem);
@@ -203,21 +253,23 @@ impl GeoUri {
 
                 match param_parts.next() {
                     Some(("u", value)) => (
-                        CrsId::Wgs84,
+                        CoordRefSystem::Wgs84,
                         Some(value.parse().map_err(ParseError::InvalidDistance)?),
                     ),
-                    Some(_) | None => (CrsId::Wgs84, None),
+                    Some(_) | None => (CoordRefSystem::Wgs84, None),
                 }
             }
             Some(("u", value)) => (
-                CrsId::default(),
+                CoordRefSystem::default(),
                 Some(value.parse().map_err(ParseError::InvalidDistance)?),
             ),
-            Some(_) | None => (CrsId::default(), None),
+            Some(_) | None => (CoordRefSystem::default(), None),
         };
 
+        crs.validate(latitude, longitude)?;
+
         Ok(GeoUri {
-            crs_id,
+            crs,
             latitude,
             longitude,
             altitude,
@@ -267,13 +319,26 @@ impl TryFrom<&str> for GeoUri {
 impl PartialEq for GeoUri {
     fn eq(&self, other: &Self) -> bool {
         // In the WGS-84 CRS the the longitude is ignored for the poles.
-        let ignore_longitude = self.crs_id == CrsId::Wgs84 && self.latitude.abs() == 90.0;
+        let ignore_longitude = self.crs == CoordRefSystem::Wgs84 && self.latitude.abs() == 90.0;
 
-        self.crs_id == other.crs_id
+        self.crs == other.crs
             && self.latitude == other.latitude
             && (ignore_longitude || self.longitude == other.longitude)
             && self.altitude == other.altitude
             && self.uncertainty == other.uncertainty
+    }
+}
+
+impl GeoUriBuilder {
+    /// Validates the coordinates against the
+    fn validate(&self) -> Result<(), String> {
+        self.crs
+            .unwrap_or_default()
+            .validate(
+                self.latitude.unwrap_or_default(),
+                self.longitude.unwrap_or_default(),
+            )
+            .map_err(|e| format!("{e}"))
     }
 }
 
@@ -284,8 +349,22 @@ mod tests {
     use super::*;
 
     #[test]
-    fn crs_id_default() {
-        assert_eq!(CrsId::default(), CrsId::Wgs84);
+    fn coord_ref_system_default() {
+        assert_eq!(CoordRefSystem::default(), CoordRefSystem::Wgs84);
+    }
+
+    #[test]
+    fn coord_ref_system_validate() {
+        let crs = CoordRefSystem::Wgs84;
+        assert_eq!(crs.validate(52.107, 5.134), Ok(()));
+        assert_eq!(
+            crs.validate(100.0, 5.134),
+            Err(ParseError::OutOfRangeLatitudeCoord)
+        );
+        assert_eq!(
+            crs.validate(51.107, -200.0),
+            Err(ParseError::OutOfRangeLongitudeCoord)
+        );
     }
 
     #[test]
@@ -363,7 +442,7 @@ mod tests {
         assert!(matches!(geo_uri, Err(ParseError::InvalidCoordRefSystem)));
 
         let geo_uri = GeoUri::parse("geo:52.107,5.34,3.6;crs=wgs84")?;
-        assert!(matches!(geo_uri.crs_id, CrsId::Wgs84));
+        assert!(matches!(geo_uri.crs, CoordRefSystem::Wgs84));
 
         // TODO: Add exmaples from RFC 5870!
 
@@ -373,7 +452,7 @@ mod tests {
     #[test]
     fn geo_uri_display() {
         let mut geo_uri = GeoUri {
-            crs_id: CrsId::Wgs84,
+            crs: CoordRefSystem::Wgs84,
             latitude: 52.107,
             longitude: 5.134,
             altitude: None,
