@@ -17,13 +17,14 @@ Just run the following to add this library to your project:
 ```sh
 $ cargo add geo-uri
     Updating crates.io index
-      Adding thiserror vX.Y.Z to dependencies.
+      Adding geo-uri vX.Y.Z to dependencies.
 ```
 
 ### Parsing
 
-Use either the [`FromStr`](std::str::FromStr) or
-[`TryFrom`](std::convert::TryFrom) traits to parse a geo URI string:
+Use either the [`TryFrom`](std::convert::TryFrom) trait or the
+[`parse`](str::parse) method on strings to parse a geo URI string into a
+[`GeoUri`] struct:
 
 ```rust
 use geo_uri::GeoUri;
@@ -34,8 +35,7 @@ assert_eq!(geo_uri.longitude(), 5.134);
 assert_eq!(geo_uri.altitude(), Some(3.6));
 assert_eq!(geo_uri.uncertainty(), Some(1000.0));
 
-use std::str::FromStr;
-let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0").expect("valid geo URI");
+let geo_uri: GeoUri = "geo:52.107,5.134;u=2000.0".parse().expect("valid geo URI");
 assert_eq!(geo_uri.latitude(), 52.107);
 assert_eq!(geo_uri.longitude(), 5.134);
 assert_eq!(geo_uri.altitude(), None);
@@ -56,9 +56,9 @@ assert_eq!(geo_uri.uncertainty(), None);
 
 ### Generating
 
-Use the `GeoUriBuilder` to construct a `GeoUri` struct.
+Use the [`GeoUriBuilder`] to construct a [`GeoUri`] struct.
 Then, use either the [`ToString`](std::string::ToString) or
-[`Display`](std::fmt::Display) trait to generate an geo URI string:
+[`Display`](std::fmt::Display) trait to generate a geo URI string:
 
 ```rust
 use geo_uri::GeoUri;

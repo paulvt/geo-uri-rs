@@ -90,7 +90,7 @@ pub enum CoordRefSystem {
 }
 
 impl CoordRefSystem {
-    /// Validates geo location coordinates against the selected coordinate reference system.
+    /// Validates geolocation coordinates against the selected coordinate reference system.
     ///
     /// # Examples
     ///
@@ -155,14 +155,13 @@ impl Default for CoordRefSystem {
 /// # }
 /// ```
 ///
-/// or by using the [`TryFrom`] trait:
+/// or by calling the [`parse`](str::parse) method on a string (using the [`TryFrom`] trait):
 /// ```
 /// use geo_uri::GeoUri;
 /// # use geo_uri::Error;
-/// use std::str::FromStr;
 ///
 /// # fn main() -> Result<(), Error> {
-/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0")?;
+/// let geo_uri: GeoUri = "geo:52.107,5.134;u=2000.0".parse()?;
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), None);
