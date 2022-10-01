@@ -316,22 +316,17 @@ impl GeoUri {
             Some(_) | None => (CoordRefSystem::default(), None),
         };
 
-        // Validate the parsed values.
-        crs.validate(latitude, longitude)?;
-        // FIXME: Move this into the validator? This code is duplicate now.
-        if let Some(unc) = uncertainty {
-            if unc < 0.0 {
-                return Err(Error::OutOfRangeUncertainty);
-            }
-        }
-
-        Ok(GeoUri {
+        // Validate the geo URI before returning it.
+        let geo_uri = GeoUri {
             crs,
             latitude,
             longitude,
             altitude,
             uncertainty,
-        })
+        };
+        geo_uri.validate()?;
+
+        Ok(geo_uri)
     }
 
     /// Returns the latitude coordinate.
@@ -397,6 +392,29 @@ impl GeoUri {
             }
         }
         self.uncertainty = uncertainty;
+
+        Ok(())
+    }
+
+    /// Validates the coordinates.
+    ///
+    /// This is only meant for internal use to prevent returning [`GeoUri`] objects that are
+    /// actually invalid.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the current latitude/longitude is invalid with respect to the current
+    /// coordinate reference system, or if the uncertainy, if set, is not zero or positive.
+    fn validate(&self) -> Result<(), Error> {
+        // Validate the latitude/longitude against the coordinate refrence system.
+        self.crs.validate(self.latitude, self.longitude)?;
+
+        // Ensure that the uncertainty is not negatify, if set.
+        if let Some(unc) = self.uncertainty {
+            if unc < 0.0 {
+                return Err(Error::OutOfRangeUncertainty);
+            }
+        }
 
         Ok(())
     }
@@ -533,6 +551,12 @@ mod tests {
             Err(GeoUriBuilderError::ValidationError(_))
         ));
 
+        builder.longitude(5.134).uncertainty(-200.0);
+        assert!(matches!(
+            builder.build(),
+            Err(GeoUriBuilderError::ValidationError(_))
+        ));
+
         Ok(())
     }
 
@@ -643,6 +667,29 @@ mod tests {
         assert_eq!(geo_uri, Err(Error::OutOfRangeLatitude));
 
         Ok(())
+    }
+
+    #[test]
+    fn geo_uri_validate() {
+        let mut geo_uri = GeoUri {
+            crs: CoordRefSystem::Wgs84,
+            latitude: 52.107,
+            longitude: 5.134,
+            altitude: None,
+            uncertainty: None,
+        };
+        assert_eq!(geo_uri.validate(), Ok(()));
+
+        geo_uri.latitude = 100.0;
+        assert_eq!(geo_uri.validate(), Err(Error::OutOfRangeLatitude));
+
+        geo_uri.latitude = 52.107;
+        geo_uri.longitude = -200.0;
+        assert_eq!(geo_uri.validate(), Err(Error::OutOfRangeLongitude));
+
+        geo_uri.longitude = 5.134;
+        geo_uri.uncertainty = Some(-2000.0);
+        assert_eq!(geo_uri.validate(), Err(Error::OutOfRangeUncertainty));
     }
 
     #[test]
