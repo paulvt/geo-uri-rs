@@ -9,9 +9,13 @@ readme = "README.md"
 license = "MIT"
 keywords = ["geolocation", "uri", "parser", "rfc5870"]
 
+[features]
+url = ["dep:url"]
+
 [dependencies]
 derive_builder = "0.11.2"
 thiserror = "1.0.35"
+url = { version = "2.3.1", optional = true }
 
 [dev-dependencies]
 float_eq = "1.0.0"

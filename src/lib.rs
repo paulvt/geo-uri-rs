@@ -18,6 +18,8 @@
 use std::fmt;
 use std::num::ParseFloatError;
 use std::str::FromStr;
+#[cfg(feature = "url")]
+use url::Url;
 
 use derive_builder::Builder;
 use thiserror::Error;
@@ -452,6 +454,20 @@ impl fmt::Display for GeoUri {
     }
 }
 
+#[cfg(feature = "url")]
+impl From<&GeoUri> for Url {
+    fn from(geo_uri: &GeoUri) -> Self {
+        Url::parse(&geo_uri.to_string()).expect("valid URL")
+    }
+}
+
+#[cfg(feature = "url")]
+impl From<GeoUri> for Url {
+    fn from(geo_uri: GeoUri) -> Self {
+        Url::from(&geo_uri)
+    }
+}
+
 impl FromStr for GeoUri {
     type Err = Error;
 
@@ -496,6 +512,24 @@ impl TryFrom<(f64, f64, f64)> for GeoUri {
         geo_uri.validate()?;
 
         Ok(geo_uri)
+    }
+}
+
+#[cfg(feature = "url")]
+impl TryFrom<&Url> for GeoUri {
+    type Error = Error;
+
+    fn try_from(url: &Url) -> Result<Self, Self::Error> {
+        GeoUri::parse(url.as_str())
+    }
+}
+
+#[cfg(feature = "url")]
+impl TryFrom<Url> for GeoUri {
+    type Error = Error;
+
+    fn try_from(url: Url) -> Result<Self, Self::Error> {
+        GeoUri::try_from(&url)
     }
 }
 
@@ -787,6 +821,25 @@ mod tests {
         assert_eq!(&geo_uri.to_string(), "geo:52.107,5.134,3.6;u=25000");
     }
 
+    #[cfg(feature = "url")]
+    #[test]
+    fn geo_uri_from() {
+        let geo_uri = GeoUri {
+            crs: CoordRefSystem::Wgs84,
+            latitude: 52.107,
+            longitude: 5.134,
+            altitude: Some(3.6),
+            uncertainty: Some(1000.0),
+        };
+        let url = Url::from(&geo_uri);
+        assert_eq!(url.scheme(), "geo");
+        assert_eq!(url.path(), "52.107,5.134,3.6;u=1000");
+
+        let url = Url::from(geo_uri);
+        assert_eq!(url.scheme(), "geo");
+        assert_eq!(url.path(), "52.107,5.134,3.6;u=1000");
+    }
+
     #[test]
     fn geo_uri_from_str() -> Result<(), Error> {
         let geo_uri = GeoUri::from_str("geo:52.107,5.134")?;
@@ -800,12 +853,14 @@ mod tests {
 
     #[test]
     fn geo_uri_try_from() -> Result<(), Error> {
+        // &str
         let geo_uri = GeoUri::try_from("geo:52.107,5.134")?;
         assert_float_eq!(geo_uri.latitude, 52.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_eq!(geo_uri.altitude, None);
         assert_eq!(geo_uri.uncertainty, None);
 
+        // (f64, f64)
         let geo_uri = GeoUri::try_from((51.107, 5.134))?;
         assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
@@ -821,6 +876,7 @@ mod tests {
             Err(Error::OutOfRangeLongitude)
         );
 
+        // (f64, f64, f64)
         let geo_uri = GeoUri::try_from((51.107, 5.134, 3.6))?;
         assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
@@ -835,6 +891,26 @@ mod tests {
             GeoUri::try_from((51.107, -200.0, 3.6)),
             Err(Error::OutOfRangeLongitude)
         );
+
+        Ok(())
+    }
+
+    #[cfg(feature = "url")]
+    #[test]
+    fn geo_uri_try_from_url() -> Result<(), Error> {
+        // Url
+        let url = Url::parse("geo:51.107,5.134,3.6;crs=wgs84;u=1000;foo=bar").expect("valid URL");
+        let geo_uri = GeoUri::try_from(&url)?;
+        assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.1);
+        assert_eq!(geo_uri.uncertainty, Some(1000.0));
+
+        let geo_uri = GeoUri::try_from(url)?;
+        assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.1);
+        assert_eq!(geo_uri.uncertainty, Some(1000.0));
 
         Ok(())
     }

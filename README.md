@@ -90,6 +90,35 @@ let geo_uri = GeoUri::try_from((52.107, 5.134)).expect("valid coordinates");
 let geo_uri = GeoUri::try_from((52.107, 5.134, 3.6)).expect("valid coordinates");
 ```
 
+### Feature: `url`
+
+You can enable the `url` feature to convert from and to
+[`Url`](https://docs.rs/url/2/url/struct.Url.html) structs from the
+[`url`](https://docs.rs/url/2/url) crate.
+
+Enable the feature in your `Cargo.toml` first:
+
+```toml
+geo-uri = { version = "X.Y.Z", features = ["url"] }
+```
+
+Then you can do:
+
+```rust
+use geo_uri::GeoUri;
+use url::Url;
+
+let url = Url::parse("geo:52.107,5.134,3.6").expect("valid URL");
+let geo_uri = GeoUri::try_from(&url).expect("valid geo URI");
+let geo_url = Url::from(geo_uri);
+
+assert_eq!(url, geo_url);
+```
+
+Note that it is always possible to transform a [`GeoUri`] into an [`Url`], but
+not always the other way around! This is because the format of the coordinates
+and parameters after the URI scheme "geo:" may be invalid!
+
 ## License
 
 geo-uri-rs is licensed under the MIT license (see the `LICENSE` file or
