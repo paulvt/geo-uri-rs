@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![doc = include_str!("../README.md")]
 #![warn(
     clippy::all,
@@ -455,6 +456,7 @@ impl fmt::Display for GeoUri {
 }
 
 #[cfg(feature = "url")]
+#[cfg_attr(docsrs, doc(cfg(feature = "url")))]
 impl From<&GeoUri> for Url {
     fn from(geo_uri: &GeoUri) -> Self {
         Url::parse(&geo_uri.to_string()).expect("valid URL")
@@ -462,6 +464,7 @@ impl From<&GeoUri> for Url {
 }
 
 #[cfg(feature = "url")]
+#[cfg_attr(docsrs, doc(cfg(feature = "url")))]
 impl From<GeoUri> for Url {
     fn from(geo_uri: GeoUri) -> Self {
         Url::from(&geo_uri)
@@ -516,6 +519,7 @@ impl TryFrom<(f64, f64, f64)> for GeoUri {
 }
 
 #[cfg(feature = "url")]
+#[cfg_attr(docsrs, doc(cfg(feature = "url")))]
 impl TryFrom<&Url> for GeoUri {
     type Error = Error;
 
@@ -525,6 +529,7 @@ impl TryFrom<&Url> for GeoUri {
 }
 
 #[cfg(feature = "url")]
+#[cfg_attr(docsrs, doc(cfg(feature = "url")))]
 impl TryFrom<Url> for GeoUri {
     type Error = Error;
 
