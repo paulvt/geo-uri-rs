@@ -107,6 +107,11 @@ impl CoordRefSystem {
     ///     Err(Error::OutOfRangeLongitude)
     /// );
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// An error is returned if the latitude/longitude is out of range with respect to the
+    /// coordinate reference system.
     pub fn validate(&self, latitude: f64, longitude: f64) -> Result<(), Error> {
         // This holds only for WGS-84, but it is the only one supported right now!
         if !(-90.0..=90.0).contains(&latitude) {
@@ -138,36 +143,48 @@ impl Default for CoordRefSystem {
 ///
 /// ```rust
 /// use geo_uri::GeoUri;
+/// # use geo_uri::Error;
 ///
-/// let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000").expect("valid geo URI");
+/// # fn main() -> Result<(), Error> {
+/// let geo_uri = GeoUri::try_from("geo:52.107,5.134,3.6;u=1000")?;
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), Some(3.6));
 /// assert_eq!(geo_uri.uncertainty(), Some(1000.0));
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// or by using the [`TryFrom`] trait:
 /// ```
 /// use geo_uri::GeoUri;
+/// # use geo_uri::Error;
 /// use std::str::FromStr;
 ///
-/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0").expect("valid geo URI");
+/// # fn main() -> Result<(), Error> {
+/// let geo_uri = GeoUri::from_str("geo:52.107,5.134;u=2000.0")?;
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), None);
 /// assert_eq!(geo_uri.uncertainty(), Some(2000.0));
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// It is also possible to call the parse function directly:
 ///
 /// ```rust
 /// use geo_uri::GeoUri;
+/// # use geo_uri::Error;
 ///
-/// let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6").expect("valid geo URI");
+/// # fn main() -> Result<(), Error> {
+/// let geo_uri = GeoUri::parse("geo:52.107,5.134,3.6")?;
 /// assert_eq!(geo_uri.latitude(), 52.107);
 /// assert_eq!(geo_uri.longitude(), 5.134);
 /// assert_eq!(geo_uri.altitude(), Some(3.6));
 /// assert_eq!(geo_uri.uncertainty(), None);
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// ## Generating
@@ -176,13 +193,14 @@ impl Default for CoordRefSystem {
 ///
 /// ```rust
 /// use geo_uri::GeoUri;
+/// # use geo_uri::GeoUriBuilderError;
 ///
+/// # fn main() -> Result<(), GeoUriBuilderError> {
 /// let geo_uri = GeoUri::builder()
 ///     .latitude(52.107)
 ///     .longitude(5.134)
 ///     .uncertainty(1_000.0)
-///     .build()
-///     .unwrap();
+///     .build()?;
 /// assert_eq!(
 ///     geo_uri.to_string(),
 ///     String::from("geo:52.107,5.134;u=1000")
@@ -191,6 +209,8 @@ impl Default for CoordRefSystem {
 ///     format!("{geo_uri}"),
 ///     String::from("geo:52.107,5.134;u=1000")
 /// );
+/// # Ok(())
+/// # }
 /// ```
 ///
 /// # See also
@@ -236,6 +256,10 @@ impl GeoUri {
     ///
     /// For the geo URI scheme syntax, see the propsed IEEE standard
     /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870#section-3.3).
+    ///
+    /// # Errors
+    ///
+    /// Will return an error if the parsing fails in any way.
     pub fn parse(uri: &str) -> Result<Self, Error> {
         let uri = uri.to_ascii_lowercase();
         let uri_path = uri.strip_prefix("geo:").ok_or(Error::MissingScheme)?;
@@ -318,7 +342,10 @@ impl GeoUri {
 
     /// Changes the latitude coordinate.
     ///
-    /// The latitude may be out of range for the coordinate reference system.
+    /// # Errors
+    ///
+    /// If the latitude is out of range for the coordinate reference system, an error will be
+    /// returned.
     pub fn set_latitude(&mut self, latitude: f64) -> Result<(), Error> {
         self.crs.validate(latitude, self.longitude)?;
         self.latitude = latitude;
@@ -333,7 +360,10 @@ impl GeoUri {
 
     /// Changes the longitude coordinate.
     ///
-    /// The longitude may be out of range for the coordinate reference system.
+    /// # Errors
+    ///
+    /// If the longitude is out of range for the coordinate reference system, an error will be
+    /// returned.
     pub fn set_longitude(&mut self, longitude: f64) -> Result<(), Error> {
         self.crs.validate(self.latitude, longitude)?;
         self.longitude = longitude;
@@ -358,7 +388,9 @@ impl GeoUri {
 
     /// Changes the uncertainty around the location.
     ///
-    /// The uncertainty distance must be positive.
+    /// # Errors
+    ///
+    /// If the uncertainty distance is not zero or positive, an error will be returned.
     pub fn set_uncertainty(&mut self, uncertainty: Option<f64>) -> Result<(), Error> {
         if let Some(unc) = uncertainty {
             if unc < 0.0 {
@@ -424,6 +456,10 @@ impl PartialEq for GeoUri {
 
 impl GeoUriBuilder {
     /// Validates the coordinates against the
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the the currently configured coordinate values are invalid.
     fn validate(&self) -> Result<(), String> {
         self.crs
             .unwrap_or_default()
