@@ -212,6 +212,16 @@ impl Default for CoordRefSystem {
 /// # }
 /// ```
 ///
+/// It is also possible to construct a [`GeoUri`] struct from coordinate tuples
+/// using the [`TryFrom`](std::convert::TryFrom) trait:
+///
+/// ```rust
+/// use geo_uri::GeoUri;
+///
+/// let geo_uri = GeoUri::try_from((52.107, 5.134)).expect("valid coordinates");
+/// let geo_uri = GeoUri::try_from((52.107, 5.134, 3.6)).expect("valid coordinates");
+/// ```
+///
 /// # See also
 ///
 /// For the proposed IEEE standard, see [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870).
@@ -455,6 +465,37 @@ impl TryFrom<&str> for GeoUri {
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         Self::parse(value)
+    }
+}
+
+impl TryFrom<(f64, f64)> for GeoUri {
+    type Error = Error;
+
+    fn try_from((latitude, longitude): (f64, f64)) -> Result<Self, Self::Error> {
+        let geo_uri = GeoUri {
+            latitude,
+            longitude,
+            ..Default::default()
+        };
+        geo_uri.validate()?;
+
+        Ok(geo_uri)
+    }
+}
+
+impl TryFrom<(f64, f64, f64)> for GeoUri {
+    type Error = Error;
+
+    fn try_from((latitude, longitude, altitude): (f64, f64, f64)) -> Result<Self, Self::Error> {
+        let geo_uri = GeoUri {
+            latitude,
+            longitude,
+            altitude: Some(altitude),
+            ..Default::default()
+        };
+        geo_uri.validate()?;
+
+        Ok(geo_uri)
     }
 }
 
@@ -764,6 +805,36 @@ mod tests {
         assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
         assert_eq!(geo_uri.altitude, None);
         assert_eq!(geo_uri.uncertainty, None);
+
+        let geo_uri = GeoUri::try_from((51.107, 5.134))?;
+        assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_eq!(geo_uri.altitude, None);
+        assert_eq!(geo_uri.uncertainty, None);
+
+        assert_eq!(
+            GeoUri::try_from((100.0, 5.134)),
+            Err(Error::OutOfRangeLatitude)
+        );
+        assert_eq!(
+            GeoUri::try_from((51.107, -200.0)),
+            Err(Error::OutOfRangeLongitude)
+        );
+
+        let geo_uri = GeoUri::try_from((51.107, 5.134, 3.6))?;
+        assert_float_eq!(geo_uri.latitude, 51.107, abs <= 0.001);
+        assert_float_eq!(geo_uri.longitude, 5.134, abs <= 0.001);
+        assert_float_eq!(geo_uri.altitude.unwrap(), 3.6, abs <= 0.1);
+        assert_eq!(geo_uri.uncertainty, None);
+
+        assert_eq!(
+            GeoUri::try_from((100.0, 5.134, 3.6)),
+            Err(Error::OutOfRangeLatitude)
+        );
+        assert_eq!(
+            GeoUri::try_from((51.107, -200.0, 3.6)),
+            Err(Error::OutOfRangeLongitude)
+        );
 
         Ok(())
     }

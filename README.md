@@ -80,6 +80,16 @@ assert_eq!(
 );
 ```
 
+It is also possible to construct a [`GeoUri`] struct from coordinate tuples
+using the [`TryFrom`](std::convert::TryFrom) trait:
+
+```rust
+use geo_uri::GeoUri;
+
+let geo_uri = GeoUri::try_from((52.107, 5.134)).expect("valid coordinates");
+let geo_uri = GeoUri::try_from((52.107, 5.134, 3.6)).expect("valid coordinates");
+```
+
 ## License
 
 geo-uri-rs is licensed under the MIT license (see the `LICENSE` file or
