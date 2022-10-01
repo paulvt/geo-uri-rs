@@ -19,11 +19,16 @@
 use std::fmt;
 use std::num::ParseFloatError;
 use std::str::FromStr;
-#[cfg(feature = "url")]
-use url::Url;
 
 use derive_builder::Builder;
+#[cfg(feature = "serde")]
+use serde::{
+    de::{Deserialize, Visitor},
+    ser::Serialize,
+};
 use thiserror::Error;
+#[cfg(feature = "url")]
+use url::Url;
 
 /// The scheme name of a geo URI.
 const URI_SCHEME_NAME: &str = "geo";
@@ -433,6 +438,36 @@ impl GeoUri {
     }
 }
 
+#[cfg(feature = "serde")]
+struct GeoUriVisitor;
+
+#[cfg(feature = "serde")]
+impl<'de> Visitor<'de> for GeoUriVisitor {
+    type Value = GeoUri;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "a string starting with {URI_SCHEME_NAME}:")
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        GeoUri::parse(v).map_err(E::custom)
+    }
+}
+
+#[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+impl<'de> Deserialize<'de> for GeoUri {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        deserializer.deserialize_str(GeoUriVisitor)
+    }
+}
+
 impl fmt::Display for GeoUri {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let Self {
@@ -476,6 +511,17 @@ impl FromStr for GeoUri {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::parse(s)
+    }
+}
+
+#[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+impl Serialize for GeoUri {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.to_string())
     }
 }
 
@@ -579,6 +625,8 @@ impl GeoUriBuilder {
 #[cfg(test)]
 mod tests {
     use float_eq::assert_float_eq;
+    #[cfg(feature = "serde")]
+    use serde_test::{assert_de_tokens_error, assert_tokens, Token};
 
     use super::*;
 
@@ -854,6 +902,28 @@ mod tests {
         assert_eq!(geo_uri.uncertainty, None);
 
         Ok(())
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn geo_uri_serde() {
+        let geo_uri = GeoUri {
+            crs: CoordRefSystem::Wgs84,
+            latitude: 52.107,
+            longitude: 5.134,
+            altitude: Some(3.6),
+            uncertainty: Some(1000.0),
+        };
+        assert_tokens(&geo_uri, &[Token::String("geo:52.107,5.134,3.6;u=1000")]);
+
+        assert_de_tokens_error::<GeoUri>(
+            &[Token::I32(0)],
+            "invalid type: integer `0`, expected a string starting with geo:",
+        );
+        assert_de_tokens_error::<GeoUri>(
+            &[Token::String("geo:100.0,5.134,3.6")],
+            &format!("{}", Error::OutOfRangeLatitude),
+        );
     }
 
     #[test]

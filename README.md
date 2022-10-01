@@ -119,6 +119,17 @@ Note that it is always possible to transform a [`GeoUri`] into an [`Url`], but
 not always the other way around! This is because the format of the coordinates
 and parameters after the URI scheme "geo:" may be invalid!
 
+### Feature: `serde`
+
+If you enable the `serde` feature, [`GeoUri`] will implement
+[`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
+[`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html).
+See the [serde](https://serde.rs) documentation for more information.
+
+```toml
+geo-uri = { version = "X.Y.Z", features = ["serde"] }
+```
+
 ## License
 
 geo-uri-rs is licensed under the MIT license (see the `LICENSE` file or
