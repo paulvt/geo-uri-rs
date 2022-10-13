@@ -24,7 +24,7 @@ $ cargo add geo-uri
 
 Use either the [`TryFrom`](std::convert::TryFrom) trait or the
 [`parse`](str::parse) method on strings to parse a geo URI string into a
-[`GeoUri`] struct:
+[`GeoUri`](GeoUri) struct:
 
 ```rust
 use geo_uri::GeoUri;
@@ -56,8 +56,8 @@ assert_eq!(geo_uri.uncertainty(), None);
 
 ### Generating
 
-Use the [`GeoUriBuilder`] to construct a [`GeoUri`] struct.
-Then, use either the [`ToString`](std::string::ToString) or
+Use the [`GeoUriBuilder`](GeoUriBuilder) to construct a [`GeoUri`](GeoUri)
+struct. Then, use either the [`ToString`](std::string::ToString) or
 [`Display`](std::fmt::Display) trait to generate a geo URI string:
 
 ```rust
@@ -80,8 +80,8 @@ assert_eq!(
 );
 ```
 
-It is also possible to construct a [`GeoUri`] struct from coordinate tuples
-using the [`TryFrom`](std::convert::TryFrom) trait:
+It is also possible to construct a [`GeoUri`](GeoUri) struct from coordinate
+tuples using the [`TryFrom`](std::convert::TryFrom) trait:
 
 ```rust
 use geo_uri::GeoUri;
@@ -115,13 +115,14 @@ let geo_url = Url::from(geo_uri);
 assert_eq!(url, geo_url);
 ```
 
-Note that it is always possible to transform a [`GeoUri`] into an [`Url`], but
-not always the other way around! This is because the format of the coordinates
-and parameters after the URI scheme "geo:" may be invalid!
+Note that it is always possible to transform a [`GeoUri`](GeoUri) into an
+[`Url`](https://docs.rs/url/2/url/struct.Url.html), but not always the other
+way around! This is because the format of the coordinates and parameters after
+the URI scheme "geo:" may be invalid!
 
 ### Feature: `serde`
 
-If you enable the `serde` feature, [`GeoUri`] will implement
+If you enable the `serde` feature, [`GeoUri`](GeoUri) will implement
 [`serde::Serialize`](https://docs.rs/serde/1/serde/trait.Serialize.html) and
 [`serde::Deserialize`](https://docs.rs/serde/1/serde/trait.Deserialize.html).
 See the [serde](https://serde.rs) documentation for more information.
