@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2023-03-11
+
+### Changed
+
+* Bumped dependency on `derive_builder` crate
+* Use `assert_eq` for float tests; drop dev depend on `float_eq` crate
+
+### Fixed
+
+* Fix doclinks in README
+* Fix docs.rs metadata section name in `Cargo.toml`
+
 ## [0.2.0] - 2022-10-01
 
 ### Added
@@ -30,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fix some small errors in the documentation
 
-[Unreleased]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.0...HEAD
+[Unreleased]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.1...HEAD
+[0.2.1]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.0..v0.2.1
 [0.2.0]: https://git.luon.net/paul/geo-uri-rs/compare/v0.1.1..v0.2.0
 [0.1.1]: https://git.luon.net/paul/geo-uri-rs/commits/tag/v0.1.1
