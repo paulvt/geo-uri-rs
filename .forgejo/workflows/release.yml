@@ -1,0 +1,65 @@
+name: "Release"
+
+on:
+  push:
+    tags:
+      - v*
+
+jobs:
+  release:
+    name: "Release"
+    runs-on: rust-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Determine the repository name and version of the release
+        run: |
+          REPO_NAME=$(basename $GITHUB_REPOSITORY)
+          VERSION=${GITHUB_REF_NAME#v}
+          echo "Releasing version of $REPO_NAME: $VERSION"
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Get the release notes from the changelog
+        run: |
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
+          RELEASE_NOTES=$(sed -n -e "/^## \[$VERSION\]/,/^## \[/{//"'!'"p;}" CHANGELOG.md | sed -e '1d;$d')
+          echo "Release notes:"
+          echo
+          echo "$RELEASE_NOTES"
+          echo "RELEASE_NOTES<<$EOF" >> "$GITHUB_ENV"
+          echo "$RELEASE_NOTES" >> "$GITHUB_ENV"
+          echo "$EOF" >> "$GITHUB_ENV"
+
+      - name: Build a release binary
+        run: |
+          # FIXME: There is no binary to build, really...
+          mkdir -p dist
+          touch dist/no-binaries
+
+      - name: Release to Forgejo
+        uses: paul/forgejo-release@main
+        with:
+          direction: upload
+          release-dir: dist
+          release-notes: '${{ env.RELEASE_NOTES }}'
+          title: 'Release ${{ env.VERSION }}'
+          token: '${{ secrets.RELEASE_TOKEN }}'
+
+  release-crate:
+    name: "Release Rust crate"
+    runs-on: rust-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run cargo publish
+        run: cargo publish --registry luon
+        env:
+          CARGO_REGISTRIES_LUON_INDEX: 'sparse+${{ github.server_url }}/api/packages/${{ github.repository_owner }}/cargo/'
+          CARGO_REGISTRIES_LUON_TOKEN: 'Bearer ${{ secrets.CARGO_TOKEN }}'
