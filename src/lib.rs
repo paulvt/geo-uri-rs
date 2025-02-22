@@ -271,7 +271,7 @@ impl GeoUri {
 
     /// Try parsing a geo URI string into a `GeoUri`.
     ///
-    /// For the geo URI scheme syntax, see the propsed IEEE standard
+    /// For the geo URI scheme syntax, see the proposed IEEE standard
     /// [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870#section-3.3).
     ///
     /// # Errors
@@ -422,9 +422,9 @@ impl GeoUri {
     /// # Errors
     ///
     /// Returns an error if the current latitude/longitude is invalid with respect to the current
-    /// coordinate reference system, or if the uncertainy, if set, is not zero or positive.
+    /// coordinate reference system, or if the uncertainty, if set, is not zero or positive.
     fn validate(&self) -> Result<(), Error> {
-        // Validate the latitude/longitude against the coordinate refrence system.
+        // Validate the latitude/longitude against the coordinate reference system.
         self.crs.validate(self.latitude, self.longitude)?;
 
         // Ensure that the uncertainty is not negatify, if set.
