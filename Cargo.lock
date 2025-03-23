@@ -96,7 +96,7 @@ dependencies = [
 
 [[package]]
 name = "geo-uri"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "derive_builder",
  "serde",
