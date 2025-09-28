@@ -20,7 +20,6 @@ use std::fmt;
 use std::num::ParseFloatError;
 use std::str::FromStr;
 
-use derive_builder::Builder;
 #[cfg(feature = "serde")]
 use serde::{
     de::{Deserialize, Visitor},
@@ -233,11 +232,9 @@ impl Default for CoordRefSystem {
 /// # See also
 ///
 /// For the proposed IEEE standard, see [RFC 5870](https://www.rfc-editor.org/rfc/rfc5870).
-#[derive(Builder, Copy, Clone, Debug, Default)]
-#[builder(build_fn(validate = "Self::validate"))]
+#[derive(Copy, Clone, Debug, Default)]
 pub struct GeoUri {
     /// The coordinate reference system used by the coordinates of this URI.
-    #[builder(default)]
     crs: CoordRefSystem,
 
     /// The latitude coordinate of a location.
@@ -253,10 +250,8 @@ pub struct GeoUri {
     longitude: f64,
 
     /// The altitude coordinate of a location, if provided.
-    #[builder(default, setter(strip_option))]
     altitude: Option<f64>,
 
-    #[builder(default, setter(strip_option))]
     /// The uncertainty around the location as a radius (distance) in meters.
     ///
     /// This distance needs to be positive.
@@ -438,6 +433,166 @@ impl GeoUri {
     }
 }
 
+/// Builder for [`GeoUri`].
+///
+/// Can be used to corerctly construct a geo URI without using conversion or parsing.
+/// Use [`GeoUri::builder`] to construct this builder.
+///
+/// # Examples
+///
+/// ```
+/// # use geo_uri::GeoUri;
+/// let mut builder = GeoUri::builder();
+///
+/// // Required fields.
+/// builder.latitude(52.107);
+/// builder.longitude(5.134);
+/// let geo_uri = builder.build().expect("valid geo URI");
+/// assert_eq!(
+///   geo_uri.to_string(),
+///   String::from("geo:52.107,5.134")
+/// );
+///
+/// // Optional fields.
+/// builder.altitude(3.6);
+/// builder.uncertainty(1000.0);
+/// let geo_uri = builder.build().expect("valid geo URI");
+/// assert_eq!(
+///   geo_uri.to_string(),
+///   String::from("geo:52.107,5.134,3.6;u=1000")
+/// );
+/// ```
+#[derive(Clone, Copy, Debug, Default)]
+pub struct GeoUriBuilder {
+    /// The coordinate reference system used by the coordinates of this URI.
+    crs: Option<CoordRefSystem>,
+
+    /// The latitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-90.0` up until including `90.0` degrees.
+    latitude: Option<f64>,
+
+    /// The longitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-180.0` up until including `180.0` degrees.
+    longitude: Option<f64>,
+
+    /// The altitude coordinate of a location, if provided.
+    altitude: Option<f64>,
+
+    /// The uncertainty around the location as a radius (distance) in meters.
+    ///
+    /// This distance needs to be positive.
+    uncertainty: Option<f64>,
+}
+
+impl GeoUriBuilder {
+    /// The coordinate reference system used by the coordinates of this URI.
+    pub fn crs(&mut self, value: CoordRefSystem) -> &mut Self {
+        self.crs = Some(value);
+
+        self
+    }
+
+    /// The latitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-90.0` up until including `90.0` degrees.
+    pub fn latitude(&mut self, value: f64) -> &mut Self {
+        self.latitude = Some(value);
+
+        self
+    }
+
+    /// The longitude coordinate of a location.
+    ///
+    /// For the WGS-84 coordinate reference system, this should be in the range of
+    /// `-180.0` up until including `180.0` degrees.
+    pub fn longitude(&mut self, value: f64) -> &mut Self {
+        self.longitude = Some(value);
+
+        self
+    }
+
+    /// The altitude coordinate of a location, if provided.
+    pub fn altitude(&mut self, value: f64) -> &mut Self {
+        self.altitude = Some(value);
+
+        self
+    }
+
+    /// The uncertainty around the location as a radius (distance) in meters.
+    ///
+    /// This distance needs to be positive, otherwise a later call to [`GeoUriBuilder::build`] will
+    /// fail.
+    #[allow(unused_mut)]
+    pub fn uncertainty(&mut self, value: f64) -> &mut Self {
+        self.uncertainty = Some(value);
+
+        self
+    }
+
+    /// Builds a new [`GeoUri`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the uncertainty is set but is not positive or if a required field has
+    /// not been initialized.
+    pub fn build(&self) -> Result<GeoUri, GeoUriBuilderError> {
+        self.validate()?;
+
+        Ok(GeoUri {
+            crs: self.crs.unwrap_or_default(),
+            latitude: self
+                .latitude
+                .ok_or(GeoUriBuilderError::UninitializedField("latitude"))?,
+            longitude: self
+                .longitude
+                .ok_or(GeoUriBuilderError::UninitializedField("longitude"))?,
+            altitude: self.altitude,
+            uncertainty: self.uncertainty,
+        })
+    }
+
+    /// Validates the coordinates.
+    ///
+    /// Performs the validation that [`GeoUri::validate`] would perform, but also checks if the
+    /// uncertainty value is not negative if provided to the builder.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the currently configured coordinate values are invalid.
+    fn validate(&self) -> Result<(), GeoUriBuilderError> {
+        self.crs.unwrap_or_default().validate(
+            self.latitude.unwrap_or_default(),
+            self.longitude.unwrap_or_default(),
+        )?;
+
+        if let Some(unc) = self.uncertainty {
+            if unc < 0.0 {
+                Err(Error::OutOfRangeUncertainty)?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+/// Possible errors when using the geo URI builder [`GeoUriBuilder`].
+#[non_exhaustive]
+#[derive(Debug, Error)]
+pub enum GeoUriBuilderError {
+    /// Uninitialized field
+    #[error("uninitialized field `{0}`")]
+    UninitializedField(&'static str),
+
+    /// Custom validation error
+    #[error("validation error: {0}")]
+    ValidationError(#[from] Error),
+}
+
 #[cfg(feature = "serde")]
 struct GeoUriVisitor;
 
@@ -594,31 +749,6 @@ impl PartialEq for GeoUri {
             && (ignore_longitude || self.longitude == other.longitude)
             && self.altitude == other.altitude
             && self.uncertainty == other.uncertainty
-    }
-}
-
-impl GeoUriBuilder {
-    /// Validates the coordinates against the
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the the currently configured coordinate values are invalid.
-    fn validate(&self) -> Result<(), String> {
-        self.crs
-            .unwrap_or_default()
-            .validate(
-                self.latitude.unwrap_or_default(),
-                self.longitude.unwrap_or_default(),
-            )
-            .map_err(|e| format!("{e}"))?;
-
-        if let Some(unc) = self.uncertainty.unwrap_or_default() {
-            if unc < 0.0 {
-                return Err(format!("{}", Error::OutOfRangeUncertainty));
-            }
-        }
-
-        Ok(())
     }
 }
 
