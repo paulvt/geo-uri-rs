@@ -221,7 +221,7 @@ impl Default for CoordRefSystem {
 /// ```
 ///
 /// It is also possible to construct a [`GeoUri`] struct from coordinate tuples
-/// using the [`TryFrom`](std::convert::TryFrom) trait:
+/// using the [`TryFrom`] trait:
 ///
 /// ```rust
 /// use geo_uri::GeoUri;
