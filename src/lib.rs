@@ -21,7 +21,7 @@ use std::num::ParseFloatError;
 use std::str::FromStr;
 
 #[cfg(feature = "serde")]
-use serde::{
+use serde_core::{
     de::{Deserialize, Visitor},
     ser::Serialize,
 };
@@ -606,7 +606,7 @@ impl<'de> Visitor<'de> for GeoUriVisitor {
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
     where
-        E: serde::de::Error,
+        E: serde_core::de::Error,
     {
         GeoUri::parse(v).map_err(E::custom)
     }
@@ -617,7 +617,7 @@ impl<'de> Visitor<'de> for GeoUriVisitor {
 impl<'de> Deserialize<'de> for GeoUri {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: serde_core::Deserializer<'de>,
     {
         deserializer.deserialize_str(GeoUriVisitor)
     }
@@ -674,7 +674,7 @@ impl FromStr for GeoUri {
 impl Serialize for GeoUri {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: serde_core::Serializer,
     {
         serializer.serialize_str(&self.to_string())
     }

@@ -18,10 +18,10 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [features]
 url = ["dep:url"]
-serde = ["dep:serde"]
+serde = ["dep:serde_core"]
 
 [dependencies]
-serde = { version = "1.0.145", optional = true }
+serde_core = { version = "1.0.145", optional = true }
 thiserror = "2.0.0"
 url = { version = "2.3.1", optional = true }
 

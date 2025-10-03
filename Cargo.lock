@@ -26,7 +26,7 @@ dependencies = [
 name = "geo-uri"
 version = "0.2.4"
 dependencies = [
- "serde",
+ "serde_core",
  "serde_test",
  "thiserror",
  "url",
