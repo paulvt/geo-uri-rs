@@ -435,7 +435,7 @@ impl GeoUri {
 
 /// Builder for [`GeoUri`].
 ///
-/// Can be used to corerctly construct a geo URI without using conversion or parsing.
+/// Can be used to correctly construct a geo URI without using conversion or parsing.
 /// Use [`GeoUri::builder`] to construct this builder.
 ///
 /// # Examples
