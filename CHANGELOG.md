@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-03-14
+
+### Changed
+
+* Replace dependency on `serde` by `serde_core`
+
 ## [0.2.4] - 2025-10-03
 
 ### Changed
@@ -72,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 * Fix some small errors in the documentation
 
-[Unreleased]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.4...HEAD
+[Unreleased]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.5...HEAD
+[0.2.5]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.4..v0.2.5
 [0.2.4]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.3..v0.2.4
 [0.2.3]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.2..v0.2.3
 [0.2.2]: https://git.luon.net/paul/geo-uri-rs/compare/v0.2.1..v0.2.2
